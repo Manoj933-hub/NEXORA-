@@ -151,81 +151,89 @@ export default function DashboardHomePage() {
 
       {/* Fast Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Card 1: Clinic Profile */}
+        {/* Card 1: Patients Directory */}
         <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 rounded-lg bg-teal-950 text-teal-300 border border-teal-800/60 flex items-center justify-center mb-4">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <h3 className="font-bold text-white text-lg">Clinic Details</h3>
+            <h3 className="font-bold text-white text-lg">Patient Directory</h3>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Configure clinic address, contact details, region, and official operational identity.
+              Register new patients, view demographic profiles, search by MRN or phone, and manage medical notes.
             </p>
           </div>
-          <div className="mt-6">
+          <div className="mt-6 flex items-center gap-2">
             <Link
-              href="/dashboard/settings"
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                isOwnerOrAdmin
-                  ? 'bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-md shadow-teal-500/20'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
-              }`}
+              href="/dashboard/patients"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-md shadow-teal-500/20 transition"
             >
-              {isOwnerOrAdmin ? 'Edit Clinic Profile' : 'View Clinic Profile'}
+              Open Patients
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
-          </div>
-        </div>
-
-        {/* Card 2: Switch Clinic */}
-        <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col justify-between">
-          <div>
-            <div className="w-10 h-10 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-800/60 flex items-center justify-center mb-4">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-            </div>
-            <h3 className="font-bold text-white text-lg">Clinic Switcher</h3>
-            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Practicing at more than one hospital or clinic? Seamlessly switch your active session tenant context.
-            </p>
-          </div>
-          <div className="mt-6">
             <Link
-              href="/select-clinic"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
+              href="/dashboard/patients/new"
+              className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
             >
-              Manage / Switch Clinics
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              + Register
             </Link>
           </div>
         </div>
 
-        {/* Card 3: Clinical Modules Notice */}
+        {/* Card 2: Appointments & Queue */}
         <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 rounded-lg bg-sky-950 text-sky-300 border border-sky-800/60 flex items-center justify-center mb-4">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h3 className="font-bold text-white text-lg">Clinical Foundations</h3>
+            <h3 className="font-bold text-white text-lg">Intake &amp; Queue</h3>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Tenant isolation, role permissions, and clinic onboarding are active. Patient records and encounters will connect here in Task 004.
+              Track today&apos;s arrivals in the lobby, perform fast check-ins, call patients into consultation, and complete visits.
             </p>
           </div>
-          <div className="mt-6">
+          <div className="mt-6 flex items-center gap-2">
             <Link
-              href="/api/health"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-teal-300 border border-slate-700 transition"
+              href="/dashboard/queue"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-md shadow-sky-500/20 transition"
             >
-              Check System Health
+              Live Queue
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+            <Link
+              href="/dashboard/appointments/new"
+              className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
+            >
+              + Book Slot
+            </Link>
+          </div>
+        </div>
+
+        {/* Card 3: Clinic Configuration */}
+        <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-800/60 flex items-center justify-center mb-4">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <h3 className="font-bold text-white text-lg">Clinic Workspace</h3>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+              Configure clinic profile, switch active practice organization, and inspect regional currency and tax settings.
+            </p>
+          </div>
+          <div className="mt-6 flex items-center gap-2">
+            <Link
+              href="/dashboard/settings"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
+            >
+              {isOwnerOrAdmin ? 'Edit Settings' : 'View Settings'}
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>

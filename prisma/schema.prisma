@@ -31,6 +31,7 @@ model User {
 
   memberships   Membership[]
   sessions      Session[]
+  appointments  Appointment[]
 
   @@index([email])
   @@map("users")
@@ -48,11 +49,79 @@ model Clinic {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  memberships Membership[]
-  sessions    Session[]
+  memberships  Membership[]
+  sessions     Session[]
+  patients     Patient[]
+  appointments Appointment[]
 
   @@index([slug])
   @@map("clinics")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Patient {
+  id               String        @id @default(uuid())
+  clinicId         String        @map("clinic_id")
+  mrn              String        // Medical Record Number / Patient Identifier within clinic (e.g. NX-0001)
+  name             String
+  dateOfBirth      DateTime?     @map("date_of_birth")
+  gender           String?       // MALE, FEMALE, OTHER
+  phone            String?
+  email            String?
+  address          String?
+  emergencyContact String?       @map("emergency_contact")
+  bloodGroup       String?       @map("blood_group")
+  allergies        String?
+  notes            String?
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  clinic           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments     Appointment[]
+
+  @@unique([clinicId, mrn])
+  @@index([clinicId])
+  @@index([clinicId, name])
+  @@index([clinicId, phone])
+  @@index([clinicId, isActive])
+  @@map("patients")
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  clinicId        String            @map("clinic_id")
+  patientId       String            @map("patient_id")
+  doctorId        String?           @map("doctor_id")
+  startTime       DateTime          @map("start_time")
+  endTime         DateTime          @map("end_time")
+  status          AppointmentStatus @default(SCHEDULED)
+  reason          String?
+  notes           String?
+  cancelledReason String?           @map("cancelled_reason")
+  checkedInAt     DateTime?         @map("checked_in_at")
+  inProgressAt    DateTime?         @map("in_progress_at")
+  completedAt     DateTime?         @map("completed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  clinic          Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor          User?             @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId])
+  @@index([clinicId, startTime])
+  @@index([clinicId, status])
+  @@index([patientId])
+  @@index([doctorId, startTime])
+  @@map("appointments")
 }
 
 model Membership {

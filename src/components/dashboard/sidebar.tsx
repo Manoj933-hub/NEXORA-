@@ -23,8 +23,10 @@ export function Sidebar({
   const roleKey = role as ClinicRole;
 
   const canUpdateClinic = hasPermission(roleKey, 'clinic:update');
+  const canAccessPatients = hasPermission(roleKey, 'patients:read');
+  const canAccessAppointments = hasPermission(roleKey, 'reception:appointments:manage');
+  const canAccessQueue = hasPermission(roleKey, 'reception:queue:manage');
   const canAccessClinical = hasPermission(roleKey, 'clinical:records:read');
-  const canAccessReception = hasPermission(roleKey, 'reception:appointments:manage');
   const canManageMembers = hasPermission(roleKey, 'members:manage');
 
   const navItems = [
@@ -40,6 +42,50 @@ export function Sidebar({
       badge: null,
     },
     {
+      name: 'Patients',
+      href: '/dashboard/patients',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      allowed: canAccessPatients,
+      badge: null,
+    },
+    {
+      name: 'Appointments',
+      href: '/dashboard/appointments',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      allowed: canAccessAppointments,
+      badge: null,
+    },
+    {
+      name: 'Patient Intake & Queue',
+      href: '/dashboard/queue',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+      allowed: canAccessQueue,
+      badge: null,
+    },
+    {
+      name: 'Clinical Records',
+      href: '/dashboard/records',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      allowed: canAccessClinical,
+      badge: 'Upcoming',
+    },
+    {
       name: 'Clinic Profile',
       href: '/dashboard/settings',
       icon: (
@@ -51,33 +97,11 @@ export function Sidebar({
       badge: canUpdateClinic ? null : 'Owner / Admin',
     },
     {
-      name: 'Clinical Records',
-      href: '#clinical',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      allowed: canAccessClinical,
-      badge: 'Task 004',
-    },
-    {
-      name: 'Patient Intake & Queue',
-      href: '#reception',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-        </svg>
-      ),
-      allowed: canAccessReception,
-      badge: 'Task 004',
-    },
-    {
       name: 'Staff & Members',
       href: '#members',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       ),
       allowed: canManageMembers,
@@ -131,15 +155,15 @@ export function Sidebar({
             return (
               <div
                 key={item.name}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-400 bg-slate-900/30 border border-transparent cursor-not-allowed"
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-500 bg-slate-900/30 border border-transparent cursor-not-allowed"
                 title={`Requires permission not held by your current role (${role})`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">{item.icon}</span>
+                  <span className="text-slate-600">{item.icon}</span>
                   <span>{item.name}</span>
                 </div>
                 {item.badge && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700/60 font-mono">
                     {item.badge}
                   </span>
                 )}

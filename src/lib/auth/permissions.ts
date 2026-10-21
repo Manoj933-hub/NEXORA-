@@ -8,6 +8,8 @@ export type Permission =
   | 'clinic:delete'
   | 'members:read'
   | 'members:manage'
+  | 'patients:read'
+  | 'patients:write'
   | 'clinical:records:read'
   | 'clinical:records:write'
   | 'reception:appointments:manage'
@@ -20,6 +22,8 @@ export const ROLE_PERMISSIONS: Record<ClinicRole, readonly Permission[]> = {
     'clinic:delete',
     'members:read',
     'members:manage',
+    'patients:read',
+    'patients:write',
     'clinical:records:read',
     'clinical:records:write',
     'reception:appointments:manage',
@@ -30,6 +34,8 @@ export const ROLE_PERMISSIONS: Record<ClinicRole, readonly Permission[]> = {
     'clinic:update',
     'members:read',
     'members:manage',
+    'patients:read',
+    'patients:write',
     'clinical:records:read',
     'clinical:records:write',
     'reception:appointments:manage',
@@ -38,13 +44,18 @@ export const ROLE_PERMISSIONS: Record<ClinicRole, readonly Permission[]> = {
   DOCTOR: [
     'clinic:read',
     'members:read',
+    'patients:read',
+    'patients:write',
     'clinical:records:read',
     'clinical:records:write',
     'reception:appointments:manage',
+    'reception:queue:manage',
   ],
   RECEPTIONIST: [
     'clinic:read',
     'members:read',
+    'patients:read',
+    'patients:write',
     'reception:appointments:manage',
     'reception:queue:manage',
   ],
