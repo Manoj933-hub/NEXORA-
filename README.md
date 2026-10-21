@@ -10,8 +10,10 @@ NEXORA is a modern healthcare SaaS platform designed for independent doctors and
 - **Frontend**: React 19, TypeScript, Tailwind CSS
 - **Database**: PostgreSQL 17
 - **ORM**: Prisma ORM 6.19
+- **Validation**: Zod
+- **Security**: Bcrypt.js, SHA-256 database-backed sessions, HttpOnly cookies, PostgreSQL rate limiter
 - **Package Manager**: npm
-- **Testing**: Vitest with React SSR validation
+- **Testing**: Vitest with unit and database integration testing
 - **Version Control**: Git
 
 ---
@@ -48,54 +50,71 @@ NEXORA is a modern healthcare SaaS platform designed for independent doctors and
    npm install
    ```
 
-2. **Generate the Prisma client:**
+2. **Run database migrations:**
+   ```bash
+   npx prisma migrate dev
+   ```
+
+3. **Generate the Prisma client:**
    ```bash
    npx prisma generate
    ```
 
-3. **Start the local development server:**
+4. **Start the local development server:**
    ```bash
    npm run dev
    ```
 
-4. **Access the application:**
+5. **Access the application:**
    - Landing page: [http://localhost:3000](http://localhost:3000)
    - Health check: [http://localhost:3000/api/health](http://localhost:3000/api/health)
 
 ---
 
-## Health Check Endpoint
+## Authentication & Multi-Tenant Architecture (Task 002)
 
-`GET /api/health` reports the application status and database connectivity safely without exposing sensitive connection strings or credentials.
+### 1. Database-Backed Sessions
+- Authentication issues a 256-bit cryptographically secure random token.
+- Only the **SHA-256 hash** of the token is saved in PostgreSQL (`sessions` table).
+- Raw token is delivered via an `HttpOnly`, `SameSite=Lax`, `Secure` (in production) cookie (`nexora_session`).
+- Revocation deletes the session record from the database.
 
-### Example Response (Healthy - 200 OK):
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-10-22T01:13:00.000Z",
-  "environment": "development",
-  "services": {
-    "database": {
-      "status": "connected",
-      "latencyMs": 3
-    }
-  }
-}
-```
+### 2. Multi-Instance Rate Limiting
+- Login and registration attempts are tracked directly in the PostgreSQL database (`auth_rate_limits` table).
+- Eliminates memory-leak issues and functions reliably across clustered/serverless instances.
 
-### Example Response (Degraded - 503 Service Unavailable):
-```json
-{
-  "status": "degraded",
-  "timestamp": "2026-10-22T01:13:00.000Z",
-  "environment": "development",
-  "services": {
-    "database": {
-      "status": "disconnected"
-    }
-  }
-}
-```
+### 3. Role-Based Access Control (RBAC)
+- **`OWNER`**: Full clinic ownership, subscription/billing, deletion, member management.
+- **`ADMIN`**: Clinic configuration, member invitations, and operational management.
+- **`DOCTOR`**: Clinical consultations, records, prescriptions, and patient care.
+- **`RECEPTIONIST`**: Appointment scheduling, queue management, and patient intake.
+- **`STAFF`**: Basic operational read-only access.
+
+### 4. Tenant Isolation
+- Client-supplied clinic IDs are strictly verified against the database.
+- `requireClinicAccess(request, clinicId, { requiredPermission })` guarantees:
+  1. Authenticated user exists and is active.
+  2. User holds an active `Membership` in the target `Clinic`.
+  3. Clinic tenant is active.
+  4. Role possesses the requested permission.
+- **Cross-clinic requests are immediately rejected with HTTP 403 Forbidden.**
+
+---
+
+## API Endpoints
+
+### System
+- `GET /api/health` - Application and database status.
+
+### Authentication
+- `POST /api/auth/register` - Atomically registers user, clinic, and OWNER membership.
+- `POST /api/auth/login` - Authenticates credentials with rate limiting and sets session cookie.
+- `POST /api/auth/logout` - Revokes session and clears cookie.
+- `GET /api/auth/me` - Returns current user, active clinic, and authorized clinics list.
+- `POST /api/auth/switch-clinic` - Switches active clinic context with server-side validation.
+
+### Clinic Organizations
+- `GET /api/clinics/[clinicId]` - Protected tenant profile with role and member statistics.
 
 ---
 

@@ -9,3 +9,95 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum ClinicRole {
+  OWNER
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+  STAFF
+}
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  passwordHash  String       @map("password_hash")
+  name          String
+  phone         String?
+  isActive      Boolean      @default(true) @map("is_active")
+  emailVerified DateTime?    @map("email_verified")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  memberships   Membership[]
+  sessions      Session[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Clinic {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  country     String       @default("IN") // "IN" for India, "NP" for Nepal
+  currency    String       @default("INR") // "INR" or "NPR"
+  phone       String?
+  address     String?
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  memberships Membership[]
+  sessions    Session[]
+
+  @@index([slug])
+  @@map("clinics")
+}
+
+model Membership {
+  id        String     @id @default(uuid())
+  userId    String     @map("user_id")
+  clinicId  String     @map("clinic_id")
+  role      ClinicRole @default(STAFF)
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clinicId])
+  @@index([userId])
+  @@index([clinicId])
+  @@map("memberships")
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  tokenHash      String    @unique @map("token_hash") // SHA-256 hash of raw session token
+  userId         String    @map("user_id")
+  activeClinicId String?   @map("active_clinic_id")
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeClinic   Clinic?   @relation(fields: [activeClinicId], references: [id], onDelete: SetNull)
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AuthRateLimit {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  attempts  Int      @default(1)
+  resetAt   DateTime @map("reset_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([key, resetAt])
+  @@map("auth_rate_limits")
+}
