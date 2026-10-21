@@ -22,11 +22,16 @@ export default function HomePage() {
               Serving India & Nepal
             </span>
             <Link
-              href="/api/health"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-slate-800 text-teal-300 border border-slate-700 hover:border-teal-500 hover:bg-slate-750 transition-colors"
+              href="/login"
+              className="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 transition"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              API Health Status
+              Sign In
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-md shadow-teal-500/20 transition"
+            >
+              Get Started
             </Link>
           </div>
         </div>
@@ -35,8 +40,8 @@ export default function HomePage() {
       {/* Main Content */}
       <section className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 flex flex-col items-center justify-center text-center">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-800 text-slate-300 text-xs sm:text-sm font-medium mb-8">
-          <span className="inline-block w-2 h-2 rounded-full bg-teal-400" />
-          Task 001 Foundation Completed
+          <span className="inline-block w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+          Task 003: Clinic Onboarding &amp; Dashboard Active
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
@@ -46,6 +51,25 @@ export default function HomePage() {
         <p className="mt-6 text-lg sm:text-xl text-slate-400 max-w-2xl leading-relaxed">
           Engineered for fast, reliable outpatient workflows, digital records, and local compliance across India and Nepal.
         </p>
+
+        {/* Primary CTA Buttons */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm shadow-xl shadow-teal-500/25 transition"
+          >
+            Launch Clinic Dashboard
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </Link>
+          <Link
+            href="/onboarding"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-semibold text-sm transition"
+          >
+            Register New Clinic
+          </Link>
+        </div>
 
         {/* Stack Status Grid */}
         <div className="mt-14 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
@@ -82,8 +106,9 @@ export default function HomePage() {
           <div className="mt-4">
             <Link
               href="/api/health"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-teal-500 hover:bg-teal-400 text-slate-950 transition-colors shadow-lg shadow-teal-500/20"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-slate-800 text-teal-300 border border-slate-700 hover:border-teal-500 hover:bg-slate-750 transition-colors shadow-lg"
             >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Inspect GET /api/health Response
             </Link>
           </div>
@@ -92,7 +117,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-slate-900 py-6 text-center text-xs text-slate-500">
-        NEXORA • Healthcare SaaS Foundation (India & Nepal)
+        NEXORA • Healthcare SaaS Foundation (India &amp; Nepal)
       </footer>
     </main>
   );
