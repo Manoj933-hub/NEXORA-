@@ -4,6 +4,12 @@ import React, { useEffect, useState, useMemo, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { calculateBMI } from '@/lib/validations/clinical';
+import { ConflictRecoveryModal } from '@/components/clinical/conflict-recovery-modal';
+import {
+  type ClinicalUnsavedChanges,
+  type ServerConsultationSnapshot,
+  isValidConsultationVersion,
+} from '@/lib/clinical/concurrency';
 
 interface DiagnosisRow {
   name: string;
@@ -34,6 +40,12 @@ export default function EditConsultationPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Concurrency & Version State
+  const [version, setVersion] = useState<number | null>(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
+  const [reloadSuccessNotice, setReloadSuccessNotice] = useState<string | null>(null);
 
   const [status, setStatus] = useState<'DRAFT' | 'FINALIZED' | 'AMENDED'>('DRAFT');
   const [patientName, setPatientName] = useState('');
@@ -78,6 +90,7 @@ export default function EditConsultationPage({
         const c = data.consultation;
 
         if (!ignore && c) {
+          setVersion(c.version ?? 1);
           setStatus(c.status);
           setPatientName(c.patient.name);
           setPatientMrn(c.patient.mrn);
@@ -156,6 +169,152 @@ export default function EditConsultationPage({
     return calculateBMI(h, heightUnit, w, weightUnit);
   }, [height, heightUnit, weight, weightUnit]);
 
+  // Structured unsaved clinical data representation for clipboard and recovery
+  const unsavedData: ClinicalUnsavedChanges = useMemo(
+    () => ({
+      consultationId,
+      patientName,
+      patientMrn,
+      originalVersion: version,
+      status,
+      amendmentReason,
+      subjective,
+      objective,
+      assessment,
+      plan,
+      vitals: {
+        systolicBp,
+        diastolicBp,
+        heartRate,
+        temperature,
+        temperatureUnit,
+        respiratoryRate,
+        oxygenSaturation,
+        height,
+        heightUnit,
+        weight,
+        weightUnit,
+        bmi: computedBmi,
+        notes: vitalsNotes,
+      },
+      diagnoses,
+      prescriptions:
+        prescriptionItems.length > 0
+          ? [
+              {
+                notes: rxNotes,
+                items: prescriptionItems,
+              },
+            ]
+          : [],
+    }),
+    [
+      consultationId,
+      patientName,
+      patientMrn,
+      version,
+      status,
+      amendmentReason,
+      subjective,
+      objective,
+      assessment,
+      plan,
+      systolicBp,
+      diastolicBp,
+      heartRate,
+      temperature,
+      temperatureUnit,
+      respiratoryRate,
+      oxygenSaturation,
+      height,
+      heightUnit,
+      weight,
+      weightUnit,
+      computedBmi,
+      vitalsNotes,
+      diagnoses,
+      prescriptionItems,
+      rxNotes,
+    ]
+  );
+
+  // Overwrites the editor state with the freshly fetched server record on confirmed reload
+  function handleReloadConfirm(serverData: ServerConsultationSnapshot) {
+    setVersion(serverData.version);
+    setStatus(serverData.status);
+    setSubjective(serverData.subjective || '');
+    setObjective(serverData.objective || '');
+    setAssessment(serverData.assessment || '');
+    setPlan(serverData.plan || '');
+    setAmendmentReason('');
+
+    if (serverData.observations && serverData.observations.length > 0) {
+      const obs = serverData.observations[0];
+      setSystolicBp(obs.systolicBp ? String(obs.systolicBp) : '');
+      setDiastolicBp(obs.diastolicBp ? String(obs.diastolicBp) : '');
+      setHeartRate(obs.heartRate ? String(obs.heartRate) : '');
+      setTemperature(obs.temperature ? String(obs.temperature) : '');
+      setTemperatureUnit(obs.temperatureUnit === 'C' ? 'C' : 'F');
+      setRespiratoryRate(obs.respiratoryRate ? String(obs.respiratoryRate) : '');
+      setOxygenSaturation(obs.oxygenSaturation ? String(obs.oxygenSaturation) : '');
+      setHeight(obs.height ? String(obs.height) : '');
+      setHeightUnit(obs.heightUnit === 'in' ? 'in' : 'cm');
+      setWeight(obs.weight ? String(obs.weight) : '');
+      setWeightUnit(obs.weightUnit === 'lbs' ? 'lbs' : 'kg');
+      setVitalsNotes(obs.notes || '');
+    } else {
+      setSystolicBp('');
+      setDiastolicBp('');
+      setHeartRate('');
+      setTemperature('');
+      setRespiratoryRate('');
+      setOxygenSaturation('');
+      setHeight('');
+      setWeight('');
+      setVitalsNotes('');
+    }
+
+    if (serverData.diagnoses && serverData.diagnoses.length > 0) {
+      setDiagnoses(
+        serverData.diagnoses.map((d) => ({
+          name: d.name,
+          codeSystem: d.codeSystem || 'ICD-10',
+          code: d.code || '',
+          type: d.type || 'PRIMARY',
+        }))
+      );
+    } else {
+      setDiagnoses([{ name: '', codeSystem: 'ICD-10', code: '', type: 'PRIMARY' }]);
+    }
+
+    if (serverData.prescriptions && serverData.prescriptions.length > 0) {
+      const rx = serverData.prescriptions[0];
+      setRxNotes(rx.notes || '');
+      if (rx.items && rx.items.length > 0) {
+        setPrescriptionItems(
+          rx.items.map((item) => ({
+            medicationName: item.medicationName,
+            strength: item.strength || '',
+            route: item.route || 'ORAL',
+            frequency: item.frequency || '',
+            duration: item.duration || '',
+            quantity: item.quantity || '',
+            instructions: item.instructions || '',
+          }))
+        );
+      } else {
+        setPrescriptionItems([]);
+      }
+    } else {
+      setRxNotes('');
+      setPrescriptionItems([]);
+    }
+
+    setConflictError(null);
+    setShowConflictModal(false);
+    setReloadSuccessNotice(`Form successfully reloaded to Version ${serverData.version} from server.`);
+  }
+
   function addDiagnosisRow() {
     setDiagnoses([
       ...diagnoses,
@@ -203,7 +362,16 @@ export default function EditConsultationPage({
   }
 
   async function handleUpdate(targetStatus?: 'DRAFT' | 'FINALIZED') {
+    if (saving) return;
+
     const isLocked = status === 'FINALIZED' || status === 'AMENDED';
+
+    if (isLocked && !isValidConsultationVersion(version)) {
+      setError(
+        'Cannot submit amendment: a valid consultation version could not be loaded from the server. Please reload the consultation record.'
+      );
+      return;
+    }
 
     if (isLocked && (!amendmentReason || amendmentReason.trim().length === 0)) {
       setError('Please provide a specific clinical reason for amending this finalized consultation.');
@@ -212,6 +380,7 @@ export default function EditConsultationPage({
 
     setSaving(true);
     setError(null);
+    setReloadSuccessNotice(null);
 
     try {
       let vitalsPayload = null;
@@ -277,6 +446,7 @@ export default function EditConsultationPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: targetStatus,
+          expectedVersion: version !== null ? version : undefined,
           subjective: subjective.trim() || null,
           objective: objective.trim() || null,
           assessment: assessment.trim() || null,
@@ -288,7 +458,18 @@ export default function EditConsultationPage({
         }),
       });
 
-      const data = await res.json();
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        const conflictMsg =
+          data.error ||
+          'Consultation version conflict: this record has been modified by another clinician. Please reload.';
+        setConflictError(conflictMsg);
+        setShowConflictModal(true);
+        setSaving(false);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.details) {
           const detailMsgs = Object.values(data.details).flat().join(', ');
@@ -296,12 +477,18 @@ export default function EditConsultationPage({
         } else {
           setError(data.error || 'Failed to update consultation');
         }
+        setSaving(false);
         return;
       }
 
+      if (data.consultation?.version) {
+        setVersion(data.consultation.version);
+      }
+
       router.push(`/dashboard/records/${consultationId}`);
-    } catch (err) {
-      console.error('Error updating consultation:', err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'A network error occurred while updating the consultation.';
+      console.error('Error updating consultation:', msg);
       setError('A network error occurred while updating the consultation.');
     } finally {
       setSaving(false);
@@ -317,7 +504,8 @@ export default function EditConsultationPage({
     );
   }
 
-  const isFinalizedOrAmended = status === 'FINALIZED' || status === 'AMENDED';
+  const isLocked = status === 'FINALIZED' || status === 'AMENDED';
+  const isFinalizedOrAmended = isLocked;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -355,9 +543,9 @@ export default function EditConsultationPage({
           {isFinalizedOrAmended ? (
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || (isLocked && !isValidConsultationVersion(version))}
               onClick={() => handleUpdate()}
-              className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5"
+              className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -394,6 +582,45 @@ export default function EditConsultationPage({
       {error && (
         <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/60 text-red-200 text-xs">
           {error}
+        </div>
+      )}
+
+      {conflictError && !showConflictModal && (
+        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div>
+            <div className="font-bold flex items-center gap-1.5 text-amber-300">
+              <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              Version Conflict Detected — Unsaved Changes Preserved
+            </div>
+            <p className="mt-1 text-slate-300">{conflictError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowConflictModal(true)}
+            className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shrink-0 transition"
+          >
+            Resolve Conflict
+          </button>
+        </div>
+      )}
+
+      {reloadSuccessNotice && (
+        <div className="p-4 rounded-xl bg-teal-950/40 border border-teal-800/80 text-teal-200 text-xs flex items-center justify-between gap-3">
+          <span>{reloadSuccessNotice}</span>
+          <button
+            type="button"
+            onClick={() => setReloadSuccessNotice(null)}
+            className="text-teal-400 hover:text-white text-xs font-semibold"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -742,6 +969,19 @@ export default function EditConsultationPage({
           ))}
         </div>
       </div>
+
+      {/* HTTP 409 Conflict Recovery Modal */}
+      {showConflictModal && (
+        <ConflictRecoveryModal
+          isOpen={showConflictModal}
+          onClose={() => setShowConflictModal(false)}
+          consultationId={consultationId}
+          conflictError={conflictError}
+          currentClientVersion={version}
+          unsavedData={unsavedData}
+          onReloadConfirm={handleReloadConfirm}
+        />
+      )}
     </div>
   );
 }
