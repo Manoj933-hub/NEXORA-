@@ -92,6 +92,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ prescriptions });
   } catch (error) {
+    if (error instanceof Error && 'digest' in error && (error as { digest: string }).digest === 'NEXT_PRERENDER_INTERRUPTED') {
+      throw error;
+    }
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }

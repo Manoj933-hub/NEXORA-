@@ -78,6 +78,9 @@ export async function GET(
 
     return NextResponse.json({ prescription });
   } catch (error) {
+    if (error instanceof Error && 'digest' in error && (error as { digest: string }).digest === 'NEXT_PRERENDER_INTERRUPTED') {
+      throw error;
+    }
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
@@ -143,7 +146,17 @@ export async function PATCH(
 
     const input = parsed.data;
 
-    // 1. Validate status transitions (reject illegal terminal status transitions)
+    // 1. Concurrency Check (Optimistic Concurrency Control)
+    if (input.expectedVersion !== undefined && input.expectedVersion !== existing.version) {
+      return NextResponse.json(
+        {
+          error: `Prescription version conflict: current version is ${existing.version}, but client submitted version ${input.expectedVersion}. Please reload.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // 2. Validate status transitions (reject illegal terminal status transitions)
     const targetStatus = input.status as PrescriptionStatus;
     if (!isValidPrescriptionStatusTransition(existing.status, targetStatus)) {
       return NextResponse.json(
@@ -151,16 +164,6 @@ export async function PATCH(
           error: `Invalid prescription status transition from ${existing.status} to ${targetStatus}. Prescriptions in terminal state (${existing.status}) cannot be changed.`,
         },
         { status: 400 }
-      );
-    }
-
-    // 2. Concurrency Check (Optimistic Concurrency Control)
-    if (input.expectedVersion !== undefined && input.expectedVersion !== existing.version) {
-      return NextResponse.json(
-        {
-          error: `Prescription version conflict: current version is ${existing.version}, but client submitted version ${input.expectedVersion}. Please reload.`,
-        },
-        { status: 409 }
       );
     }
 
@@ -201,8 +204,11 @@ export async function PATCH(
         details: `Updated prescription status to ${input.status}`,
       });
 
-      return tx.prescription.findUnique({
-        where: { id: prescriptionId },
+      return tx.prescription.findFirst({
+        where: {
+          id: prescriptionId,
+          clinicId: context.clinic.id,
+        },
         include: {
           patient: true,
           doctor: { select: { id: true, name: true } },
