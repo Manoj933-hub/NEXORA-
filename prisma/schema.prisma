@@ -37,6 +37,8 @@ model User {
   consultationVersions ConsultationVersion[] @relation("DoctorConsultationVersions")
   amendedVersions   ConsultationVersion[]   @relation("AmendedByVersions")
   clinicalAuditLogs ClinicalAuditLog[]
+  createdInvoices   Invoice[]             @relation("InvoiceCreatedBy")
+  receivedPayments  Payment[]             @relation("PaymentReceivedBy")
 
   @@index([email])
   @@map("users")
@@ -50,6 +52,8 @@ model Clinic {
   currency    String       @default("INR") // "INR" or "NPR"
   phone       String?
   address     String?
+  taxLabel    String?      @map("tax_label") // e.g. "GSTIN", "PAN", "VAT"
+  taxNumber   String?      @map("tax_number") // Optional tax/registration number
   isActive    Boolean      @default(true) @map("is_active")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
@@ -64,6 +68,9 @@ model Clinic {
   prescriptions        Prescription[]
   consultationVersions ConsultationVersion[]
   clinicalAuditLogs    ClinicalAuditLog[]
+  invoices             Invoice[]
+  invoiceSequences     InvoiceSequence[]
+  payments             Payment[]
 
   @@index([slug])
   @@map("clinics")
@@ -103,6 +110,7 @@ model Patient {
   prescriptions       Prescription[]
   consultationVersions ConsultationVersion[]
   clinicalAuditLogs   ClinicalAuditLog[]
+  invoices            Invoice[]
 
   @@unique([clinicId, mrn])
   @@index([clinicId])
@@ -133,6 +141,7 @@ model Appointment {
   patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctor          User?             @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   consultations   Consultation[]
+  invoices        Invoice[]
 
   @@index([clinicId])
   @@index([clinicId, startTime])
@@ -239,6 +248,7 @@ model Consultation {
   prescriptions   Prescription[]
   versions        ConsultationVersion[]
   auditLogs       ClinicalAuditLog[]
+  invoices        Invoice[]
 
   @@index([clinicId])
   @@index([clinicId, createdAt])
@@ -420,4 +430,135 @@ model ConsultationVersion {
   @@index([patientId])
   @@index([consultationId])
   @@map("consultation_versions")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  NET_BANKING
+  BANK_TRANSFER
+  INSURANCE
+  OTHER
+}
+
+enum InvoiceItemType {
+  CONSULTATION
+  PROCEDURE
+  MEDICATION
+  LAB
+  MISC
+}
+
+model InvoiceSequence {
+  id           String   @id @default(uuid())
+  clinicId     String   @map("clinic_id")
+  year         Int
+  lastSequence Int      @default(0) @map("last_sequence")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, year])
+  @@index([clinicId])
+  @@map("invoice_sequences")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  clinicId       String        @map("clinic_id")
+  patientId      String        @map("patient_id")
+  appointmentId  String?       @map("appointment_id")
+  consultationId String?       @map("consultation_id")
+  createdById    String?       @map("created_by_id")
+
+  invoiceNumber  String        @map("invoice_number")
+  year           Int
+  currency       String        @default("INR") // Snapshotted from Clinic.currency ("INR" or "NPR")
+  status         InvoiceStatus @default(DRAFT)
+
+  subtotal       Decimal       @default(0.00) @map("subtotal") @db.Decimal(12, 2)
+  discount       Decimal       @default(0.00) @map("discount") @db.Decimal(12, 2)
+  taxRate        Decimal?      @map("tax_rate") @db.Decimal(5, 2)
+  taxAmount      Decimal       @default(0.00) @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount    Decimal       @default(0.00) @map("total_amount") @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0.00) @map("paid_amount") @db.Decimal(12, 2)
+
+  issueDate      DateTime?     @map("issue_date")
+  dueDate        DateTime?     @map("due_date")
+  notes          String?
+
+  taxLabel       String?       @map("tax_label")
+  taxNumber      String?       @map("tax_number")
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  clinic         Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient        Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointment    Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  createdBy      User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@unique([clinicId, invoiceNumber])
+  @@index([clinicId, status])
+  @@index([clinicId, patientId])
+  @@index([clinicId, year])
+  @@index([appointmentId])
+  @@index([consultationId])
+  @@index([createdById])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String          @id @default(uuid())
+  invoiceId   String          @map("invoice_id")
+  itemType    InvoiceItemType @default(MISC) @map("item_type")
+  description String
+  quantity    Int             @default(1)
+  unitPrice   Decimal         @map("unit_price") @db.Decimal(12, 2)
+  lineTotal   Decimal         @map("line_total") @db.Decimal(12, 2)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  clinicId       String        @map("clinic_id")
+  invoiceId      String        @map("invoice_id")
+  amount         Decimal       @map("amount") @db.Decimal(12, 2)
+  method         PaymentMethod
+  transactionRef String?       @map("transaction_ref")
+  notes          String?
+  receivedById   String?       @map("received_by_id")
+  receivedAt     DateTime      @default(now()) @map("received_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  clinic         Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  receivedBy     User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, invoiceId])
+  @@index([clinicId, receivedAt])
+  @@index([receivedById])
+  @@map("payments")
 }

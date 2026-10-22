@@ -147,6 +147,61 @@ describe('Dashboard Components Unit Tests', () => {
       expect(html).not.toMatch(/class="[^"]*bg-teal-500\/15 text-teal-300[^"]*" href="\/dashboard\/records"/);
     });
 
+    it('renders active Billing & Invoices link pointing to /dashboard/billing for authorized roles', () => {
+      currentPathname = '/dashboard';
+      const authorizedRoles = [
+        ClinicRole.OWNER,
+        ClinicRole.ADMIN,
+        ClinicRole.DOCTOR,
+        ClinicRole.RECEPTIONIST,
+      ];
+
+      for (const role of authorizedRoles) {
+        const html = renderToString(
+          React.createElement(Sidebar, {
+            clinicName: 'Apollo Care',
+            clinicCountry: 'IN',
+            role,
+          })
+        );
+
+        expect(html).toContain('href="/dashboard/billing"');
+        expect(html).toContain('<span>Billing &amp; Invoices</span>');
+      }
+    });
+
+    it('disables Billing & Invoices item for STAFF role lacking patients:read permission', () => {
+      currentPathname = '/dashboard';
+      const html = renderToString(
+        React.createElement(Sidebar, {
+          clinicName: 'Apollo Care',
+          clinicCountry: 'IN',
+          role: ClinicRole.STAFF,
+        })
+      );
+
+      expect(html).not.toContain('href="/dashboard/billing"');
+      expect(html).toContain('cursor-not-allowed');
+      expect(html).toContain('Billing &amp; Invoices');
+      expect(html).toContain('Requires permission not held by your current role (STAFF)');
+    });
+
+    it('highlights Billing & Invoices nav item when active path is /dashboard/billing', () => {
+      currentPathname = '/dashboard/billing';
+      const html = renderToString(
+        React.createElement(Sidebar, {
+          clinicName: 'City Hospital',
+          clinicCountry: 'IN',
+          role: ClinicRole.RECEPTIONIST,
+        })
+      );
+
+      expect(html).toMatch(
+        /class="[^"]*bg-teal-500\/15 text-teal-300 border border-teal-500\/30[^"]*" href="\/dashboard\/billing"/
+      );
+      expect(html).not.toMatch(/class="[^"]*bg-teal-500\/15 text-teal-300[^"]*" href="\/dashboard"/);
+    });
+
     it('preserves all existing navigation entries and quick links intact', () => {
       currentPathname = '/dashboard';
       const html = renderToString(
@@ -164,6 +219,7 @@ describe('Dashboard Components Unit Tests', () => {
       expect(html).toContain('Patient Intake &amp; Queue');
       expect(html).toContain('Clinical Records');
       expect(html).toContain('Prescriptions');
+      expect(html).toContain('Billing &amp; Invoices');
       expect(html).toContain('Clinic Profile');
       expect(html).toContain('Staff &amp; Members');
 

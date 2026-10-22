@@ -84,7 +84,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row">
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex flex-shrink-0">
+      <div className="hidden md:flex flex-shrink-0 print:hidden">
         <Sidebar
           clinicName={data.activeClinic.name}
           clinicCountry={data.activeClinic.country}
@@ -94,7 +94,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex md:hidden print:hidden">
           <div
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
@@ -111,15 +111,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main App Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <Header
-          userName={data.user.name}
-          userEmail={data.user.email}
-          activeClinic={data.activeClinic}
-          clinics={data.clinics}
-          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-        />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto print:overflow-visible">
+        <div className="print:hidden">
+          <Header
+            userName={data.user.name}
+            userEmail={data.user.email}
+            activeClinic={data.activeClinic}
+            clinics={data.clinics}
+            onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+          />
+        </div>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none">
           {children}
         </main>
       </div>
