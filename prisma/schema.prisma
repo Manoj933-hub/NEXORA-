@@ -29,9 +29,14 @@ model User {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  memberships   Membership[]
-  sessions      Session[]
-  appointments  Appointment[]
+  memberships       Membership[]
+  sessions          Session[]
+  appointments      Appointment[]
+  consultations     Consultation[]        @relation("DoctorConsultations")
+  prescriptions     Prescription[]        @relation("DoctorPrescriptions")
+  consultationVersions ConsultationVersion[] @relation("DoctorConsultationVersions")
+  amendedVersions   ConsultationVersion[]   @relation("AmendedByVersions")
+  clinicalAuditLogs ClinicalAuditLog[]
 
   @@index([email])
   @@map("users")
@@ -49,10 +54,16 @@ model Clinic {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  memberships  Membership[]
-  sessions     Session[]
-  patients     Patient[]
-  appointments Appointment[]
+  memberships       Membership[]
+  sessions          Session[]
+  patients          Patient[]
+  appointments      Appointment[]
+  consultations     Consultation[]
+  observations      Observation[]
+  diagnoses            Diagnosis[]
+  prescriptions        Prescription[]
+  consultationVersions ConsultationVersion[]
+  clinicalAuditLogs    ClinicalAuditLog[]
 
   @@index([slug])
   @@map("clinics")
@@ -67,25 +78,31 @@ enum AppointmentStatus {
 }
 
 model Patient {
-  id               String        @id @default(uuid())
-  clinicId         String        @map("clinic_id")
-  mrn              String        // Medical Record Number / Patient Identifier within clinic (e.g. NX-0001)
+  id               String             @id @default(uuid())
+  clinicId         String             @map("clinic_id")
+  mrn              String             // Medical Record Number / Patient Identifier within clinic (e.g. NX-0001)
   name             String
-  dateOfBirth      DateTime?     @map("date_of_birth")
-  gender           String?       // MALE, FEMALE, OTHER
+  dateOfBirth      DateTime?          @map("date_of_birth")
+  gender           String?            // MALE, FEMALE, OTHER
   phone            String?
   email            String?
   address          String?
-  emergencyContact String?       @map("emergency_contact")
-  bloodGroup       String?       @map("blood_group")
+  emergencyContact String?            @map("emergency_contact")
+  bloodGroup       String?            @map("blood_group")
   allergies        String?
   notes            String?
-  isActive         Boolean       @default(true) @map("is_active")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  isActive         Boolean            @default(true) @map("is_active")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
-  clinic           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic           Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   appointments     Appointment[]
+  consultations    Consultation[]
+  observations        Observation[]
+  diagnoses           Diagnosis[]
+  prescriptions       Prescription[]
+  consultationVersions ConsultationVersion[]
+  clinicalAuditLogs   ClinicalAuditLog[]
 
   @@unique([clinicId, mrn])
   @@index([clinicId])
@@ -115,6 +132,7 @@ model Appointment {
   clinic          Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctor          User?             @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  consultations   Consultation[]
 
   @@index([clinicId])
   @@index([clinicId, startTime])
@@ -169,4 +187,237 @@ model AuthRateLimit {
 
   @@index([key, resetAt])
   @@map("auth_rate_limits")
+}
+
+enum ConsultationStatus {
+  DRAFT
+  FINALIZED
+  AMENDED
+}
+
+enum DiagnosisType {
+  PRIMARY
+  SECONDARY
+}
+
+enum PrescriptionStatus {
+  ACTIVE
+  COMPLETED
+  DISCONTINUED
+  CANCELLED
+}
+
+model Consultation {
+  id              String             @id @default(uuid())
+  clinicId        String             @map("clinic_id")
+  patientId       String             @map("patient_id")
+  doctorId        String             @map("doctor_id")
+  appointmentId   String?            @map("appointment_id")
+  status          ConsultationStatus @default(DRAFT)
+  version         Int                @default(1)
+
+  // SOAP Notes
+  subjective      String?            // Symptoms, history of present illness, patient complaints
+  objective       String?            // Physical examination, clinical findings
+  assessment      String?            // Clinical assessment, clinical rationale
+  plan            String?            // Treatment plan, advice, follow-up instructions
+
+  finalizedAt     DateTime?          @map("finalized_at")
+  amendedAt       DateTime?          @map("amended_at")
+  amendmentReason String?            @map("amendment_reason")
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  clinic          Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor          User               @relation("DoctorConsultations", fields: [doctorId], references: [id], onDelete: Restrict)
+  appointment     Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  observations    Observation[]
+  diagnoses       Diagnosis[]
+  prescriptions   Prescription[]
+  versions        ConsultationVersion[]
+  auditLogs       ClinicalAuditLog[]
+
+  @@index([clinicId])
+  @@index([clinicId, createdAt])
+  @@index([patientId, createdAt])
+  @@index([doctorId])
+  @@index([appointmentId])
+  @@map("consultations")
+}
+
+model Observation {
+  id               String        @id @default(uuid())
+  clinicId         String        @map("clinic_id")
+  patientId        String        @map("patient_id")
+  consultationId   String        @map("consultation_id")
+  version          Int           @default(1)
+  isCurrent        Boolean       @default(true) @map("is_current")
+
+  systolicBp       Int?          @map("systolic_bp")       // mmHg (e.g. 120)
+  diastolicBp      Int?          @map("diastolic_bp")      // mmHg (e.g. 80)
+  heartRate        Int?          @map("heart_rate")        // bpm (e.g. 72)
+  temperature      Float?                                  // e.g. 98.6
+  temperatureUnit  String?       @default("F") @map("temperature_unit") // "F" or "C"
+  respiratoryRate  Int?          @map("respiratory_rate")  // breaths/min (e.g. 16)
+  oxygenSaturation Float?        @map("oxygen_saturation") // SpO2 % (e.g. 98.5)
+  height           Float?                                  // e.g. 172.0
+  heightUnit       String?       @default("cm") @map("height_unit") // "cm" or "in"
+  weight           Float?                                  // e.g. 68.5
+  weightUnit       String?       @default("kg") @map("weight_unit") // "kg" or "lbs"
+  bmi              Float?                                  // body mass index
+  notes            String?
+
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  clinic           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient          Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consultation     Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([consultationId])
+  @@index([consultationId, isCurrent])
+  @@map("observations")
+}
+
+model Diagnosis {
+  id              String        @id @default(uuid())
+  clinicId        String        @map("clinic_id")
+  patientId       String        @map("patient_id")
+  consultationId  String        @map("consultation_id")
+  version         Int           @default(1)
+  isCurrent       Boolean       @default(true) @map("is_current")
+
+  name            String        // Diagnosis description
+  codeSystem      String?       @map("code_system") // e.g. "ICD-10", "CUSTOM"
+  code            String?       // e.g. "E11.9"
+  type            DiagnosisType @default(PRIMARY)
+  clinicalStatus  String?       @default("ACTIVE") @map("clinical_status") // "ACTIVE", "RESOLVED", "CHRONIC"
+  notes           String?
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  clinic          Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consultation    Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([consultationId])
+  @@index([consultationId, isCurrent])
+  @@map("diagnoses")
+}
+
+model Prescription {
+  id              String             @id @default(uuid())
+  clinicId        String             @map("clinic_id")
+  patientId       String             @map("patient_id")
+  consultationId  String?            @map("consultation_id")
+  doctorId        String             @map("doctor_id")
+  status          PrescriptionStatus @default(ACTIVE)
+  version         Int                @default(1)
+  notes           String?            // General advice, dietary precautions
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  clinic          Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consultation    Consultation?      @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  doctor          User               @relation("DoctorPrescriptions", fields: [doctorId], references: [id], onDelete: Restrict)
+
+  items           PrescriptionItem[]
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([consultationId])
+  @@index([doctorId])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id              String       @id @default(uuid())
+  prescriptionId  String       @map("prescription_id")
+  medicationName  String       @map("medication_name")
+  strength        String?      // e.g. "500 mg"
+  route           String?      // e.g. "ORAL", "TOPICAL"
+  frequency       String       // e.g. "1-0-1", "Twice daily"
+  duration        String       // e.g. "5 days", "1 month"
+  quantity        String?      // e.g. "10 tablets"
+  instructions    String?      // e.g. "After meals"
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+  @@map("prescription_items")
+}
+
+model ClinicalAuditLog {
+  id              String       @id @default(uuid())
+  clinicId        String       @map("clinic_id")
+  patientId       String       @map("patient_id")
+  consultationId  String?      @map("consultation_id")
+  actorId         String       @map("actor_id")
+  actorName       String       @map("actor_name")
+  actorRole       ClinicRole   @map("actor_role")
+  recordType      String       @map("record_type") // "CONSULTATION", "PRESCRIPTION", "OBSERVATION", "DIAGNOSIS"
+  recordId        String       @map("record_id")
+  action          String       // "CREATE", "UPDATE", "FINALIZE", "AMEND", "CANCEL"
+  details         String?      // Structured safe summary
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  clinic          Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  consultation    Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  actor           User         @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, patientId])
+  @@index([consultationId])
+  @@index([recordId])
+  @@index([actorId])
+  @@map("clinical_audit_logs")
+}
+
+model ConsultationVersion {
+  id                    String             @id @default(uuid())
+  consultationId        String             @map("consultation_id")
+  clinicId              String             @map("clinic_id")
+  patientId             String             @map("patient_id")
+  doctorId              String             @map("doctor_id")
+  versionNumber         Int                @map("version_number")
+  status                ConsultationStatus
+
+  subjective            String?
+  objective             String?
+  assessment            String?
+  plan                  String?
+
+  observationsSnapshot  Json?              @map("observations_snapshot")
+  diagnosesSnapshot     Json?              @map("diagnoses_snapshot")
+  prescriptionsSnapshot Json?              @map("prescriptions_snapshot")
+
+  finalizedAt           DateTime?          @map("finalized_at")
+  amendedAt             DateTime?          @map("amended_at")
+  amendmentReason       String?            @map("amendment_reason")
+  amendedById           String?            @map("amended_by_id")
+
+  createdAt             DateTime           @default(now()) @map("created_at")
+
+  consultation          Consultation       @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  clinic                Clinic             @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient               Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor                User               @relation("DoctorConsultationVersions", fields: [doctorId], references: [id], onDelete: Restrict)
+  amendedBy             User?              @relation("AmendedByVersions", fields: [amendedById], references: [id], onDelete: SetNull)
+
+  @@unique([consultationId, versionNumber])
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([consultationId])
+  @@map("consultation_versions")
 }

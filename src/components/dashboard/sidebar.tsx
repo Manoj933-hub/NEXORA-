@@ -83,7 +83,7 @@ export function Sidebar({
         </svg>
       ),
       allowed: canAccessClinical,
-      badge: 'Upcoming',
+      badge: null,
     },
     {
       name: 'Clinic Profile',

@@ -17,7 +17,7 @@ NEXORA addresses the unique operational realities of healthcare practices in Sou
 
 ## 2. Project Status
 
-NEXORA is in active development. Foundations through **Task 004** are fully implemented, verified, and backed by automated integration tests:
+NEXORA is in active development. Foundations through **Task 005** are fully implemented, verified, and backed by automated integration tests:
 
 | Milestone | Scope | Status |
 | :--- | :--- | :--- |
@@ -25,7 +25,7 @@ NEXORA is in active development. Foundations through **Task 004** are fully impl
 | **Task 002** | Secure authentication, SHA-256 session token hashing, database rate limiting, tenant isolation, RBAC | Completed |
 | **Task 003** | Clinic onboarding wizard, multi-clinic switcher, protected dashboard shell, role-aware navigation | Completed |
 | **Task 004** | Clinic-scoped patient management, unique MRN generation, appointment scheduling, doctor conflict detection, reception queue | Completed |
-| **Task 005** | Clinical records, consultation notes (SOAP), vitals tracking, digital prescriptions | Planned |
+| **Task 005** | Clinical records, consultation notes (SOAP), vitals tracking, digital prescriptions | Completed |
 
 > **Development Notice**: NEXORA is currently in development. While security controls, tenant isolation, and automated tests are rigorously maintained, formal healthcare regulatory assessments (such as ABDM M1/M2/M3 certification in India) have not yet been conducted. Do not deploy to production medical environments without completing formal compliance and security audits.
 
@@ -52,7 +52,7 @@ NEXORA is built with modern, production-grade web technologies:
 
 ## 4. Core Features
 
-### Implemented Features (Tasks 001–004)
+### Implemented Features (Tasks 001–005)
 - **Multi-Tenant Clinic Management**: Create and manage isolated clinic workspaces with custom slugs, addresses, and country-specific settings.
 - **Multi-Clinic Context Switching**: Clinicians and staff belonging to multiple clinics can seamlessly switch between practice workspaces.
 - **Secure Authentication**: Email/password registration with atomic clinic setup, credential login, secure logout, and session introspection (`/api/auth/me`).
@@ -62,6 +62,11 @@ NEXORA is built with modern, production-grade web technologies:
 - **Appointment Scheduling**: Clinic-scoped booking with start/end time validation, timezone-safe UTC timestamps, and doctor conflict detection (HTTP 409).
 - **Appointment State Machine**: Validated transitions (`SCHEDULED` -> `CHECKED_IN` -> `IN_PROGRESS` -> `COMPLETED`, terminal `CANCELLED`) with automatic audit timestamps.
 - **Reception Intake Queue**: Live lobby dashboard tracking today's arrivals with one-click status updates and real-time status counters.
+- **Structured SOAP Clinical Encounters**: Doctor consultation recording supporting Subjective, Objective, Assessment, and Plan with draft, finalized, and amended lifecycles.
+- **Physiological Vital Signs & BMI**: Validated clinical observations (blood pressure with systolic > diastolic validation, pulse rate, temperature in °F/°C, respiratory rate, SpO2, height, weight, and automated BMI calculation).
+- **Clinical Diagnoses**: Primary and secondary diagnosis attribution with terminology code support.
+- **Digital Prescriptions**: Structured medication orders with strength, dosage route, frequency, duration, quantity, notes, and lifecycle tracking (`ACTIVE`, `COMPLETED`, `DISCONTINUED`, `CANCELLED`).
+- **Clinical Immutability & Audit Trail**: Finalized encounters require explicit amendment reasons; append-only `clinical_audit_logs` record clinician, action, and timestamp.
 - **Role-Aware Dashboard UI**: Unified responsive navigation adapting accessible actions according to the user's role.
 
 ---
@@ -200,14 +205,43 @@ The reception intake queue (`/dashboard/queue`) serves as the front-desk operati
 
 ---
 
-## 11. Clinical Records Roadmap
+## 11. Clinical Records and Electronic Medical Records (EMR)
 
-Task 005 will expand NEXORA into a comprehensive Electronic Medical Record (EMR) system. The placeholder dashboard view at `/dashboard/records` provides a clear roadmap of planned functionality:
+NEXORA provides a clinical documentation and Electronic Medical Record (EMR) suite for outpatient care:
 
-- **Consultation Notes**: Structured SOAP documentation (Subjective, Objective, Assessment, Plan).
-- **Vitals Tracking**: Blood pressure, pulse, temperature, respiratory rate, SpO2, height, weight, and automated BMI calculations.
-- **Diagnosis Coding**: Diagnostic tagging supporting standard ICD-10 codes and practice-defined clinical terms.
-- **Digital Prescriptions (Rx)**: Drug database lookup, dosage instructions, frequency, duration, food relationships, and print-ready prescription layouts.
+- **Structured SOAP Encounters**:
+  - **Subjective**: Patient-reported symptoms, chief complaint history, onset, and clinical narrative.
+  - **Objective**: Physical examination findings and verified clinical observations.
+  - **Assessment**: Differential diagnoses, clinical impressions, and summary assessment.
+  - **Plan**: Diagnostic investigations, clinical management, follow-up advice, and patient education.
+- **Validated Vital Signs & Physical Metrics**:
+  - Blood Pressure (systolic 40–300 mmHg, diastolic 30–200 mmHg, with strict validation enforcing systolic > diastolic).
+  - Heart Rate / Pulse (20–300 bpm).
+  - Body Temperature (validated ranges for Fahrenheit 90–108°F and Celsius 32–43°C).
+  - Respiratory Rate (4–80 breaths/min).
+  - Oxygen Saturation / SpO2 (50–100%).
+  - Anthropometry: Height (cm or in), Weight (kg or lbs), and automatic Body Mass Index (BMI) computation.
+- **Clinical Diagnoses**:
+  - Designated as `PRIMARY` or `SECONDARY`.
+  - Extensible code system schema supporting standard coding (e.g., ICD-10) or practice-defined terms.
+- **Structured Digital Prescriptions (Rx)**:
+  - Linked to patient, clinic, consultation, and authoring clinician.
+  - Granular items: Medication name, strength, dosage instructions, administration route (`ORAL`, `INHALATION`, `TOPICAL`, `INTRAVENOUS`, `INTRAMUSCULAR`, etc.), frequency, duration, quantity, and specific instructions (e.g., "After food").
+  - Status lifecycle management (`ACTIVE`, `COMPLETED`, `DISCONTINUED`, `CANCELLED`).
+  - Print-ready encounter summary and prescription slip for patient dispensing.
+- **Consultation Lifecycle, Durable Version History & Immutability**:
+  - `DRAFT`: In-progress consultation editable by authorized clinic doctors.
+  - `FINALIZED`: Clinically signed encounter. Setting an encounter to `FINALIZED` automatically completes any linked appointment (`Appointment.completedAt = now`) and creates an immutable initial snapshot (Version 1).
+  - `AMENDED`: Modifying a finalized consultation requires an explicit, validated `amendmentReason` (minimum 3 characters). Prior states are preserved in the `consultation_versions` append-only audit model, capturing previous SOAP notes, vitals snapshots, diagnoses, and prescriptions.
+  - **Zero Destructive Deletes**: Vital signs (observations) and diagnoses are never deleted during amendments. Prior records are marked `isCurrent: false` with preserved version counters, maintaining full clinical longitudinal integrity.
+- **Optimistic Concurrency Control (OCC)**:
+  - Both consultations and prescriptions maintain integer `version` fields.
+  - Updates require conditional database queries (`updateMany` matching `version` and `clinicId`), rejecting race conditions or stale edits with `409 Conflict`.
+- **Append-Only Clinical Audit Trail**:
+  - Every consultation creation, draft edit, sign-off (`FINALIZE`), amendment (`AMEND`), and prescription status change writes an immutable audit record to `clinical_audit_logs`.
+  - Audit records track the actor (`actorId`, `actorName`, `actorRole`), record type, action, and timestamp. Ordinary application endpoints cannot modify or delete audit entries.
+- **Longitudinal Patient History**:
+  - Dedicated endpoint (`GET /api/patients/[patientId]/clinical-history`) and patient profile timeline providing a chronological overview of all visits, vitals trends, past diagnoses, active medications, and consultation amendment history.
 
 ---
 
@@ -253,7 +287,9 @@ NEXORA/
 │   ├── migrations/
 │   │   ├── 20261021200848_init_auth_clinics_roles/
 │   │   │   └── migration.sql
-│   │   └── 20261021210203_add_patients_and_appointments/
+│   │   ├── 20261021210203_add_patients_and_appointments/
+│   │   │   └── migration.sql
+│   │   └── 20261022052216_add_clinical_records_and_emr/
 │   │       └── migration.sql
 │   ├── migration_lock.toml
 │   └── schema.prisma                 # Database schema models & enums
@@ -278,13 +314,20 @@ NEXORA/
 │   │   │   │   ├── clinics.test.ts
 │   │   │   │   ├── onboarding.test.ts
 │   │   │   │   └── route.ts
+│   │   │   ├── consultations/        # EMR consultations & SOAP notes
+│   │   │   │   ├── [consultationId]/ # Consultation details, edit & amend
+│   │   │   │   ├── consultations.test.ts
+│   │   │   │   └── route.ts
 │   │   │   ├── health/               # System health probe
 │   │   │   │   ├── route.test.ts
 │   │   │   │   └── route.ts
 │   │   │   ├── patients/             # Patient directory & registration
 │   │   │   │   ├── [patientId]/      # Patient profile & edit
+│   │   │   │   │   └── clinical-history/ # Patient longitudinal EMR history
 │   │   │   │   ├── patients.test.ts
 │   │   │   │   └── route.ts
+│   │   │   ├── prescriptions/        # Prescription management & status lifecycle
+│   │   │   │   └── [prescriptionId]/
 │   │   │   └── queue/                # Reception intake queue & metrics
 │   │   │       ├── queue.test.ts
 │   │   │       └── route.ts
@@ -292,7 +335,10 @@ NEXORA/
 │   │   │   ├── appointments/         # Appointment management & booking UI
 │   │   │   ├── patients/             # Patient directory, intake, & profile UI
 │   │   │   ├── queue/                # Reception queue board UI
-│   │   │   ├── records/              # Clinical records roadmap notice
+│   │   │   ├── records/              # Consultation list & encounter history
+│   │   │   │   ├── [consultationId]/ # Full encounter view & print slip
+│   │   │   │   │   └── edit/         # Amend / update consultation form
+│   │   │   │   └── new/              # SOAP consultation wizard & vitals input
 │   │   │   ├── settings/             # Clinic profile & settings UI
 │   │   │   ├── layout.tsx
 │   │   │   └── page.tsx
@@ -318,12 +364,15 @@ NEXORA/
 │       │   ├── rate-limiter.ts       # PostgreSQL-backed rate limiter
 │       │   ├── session.ts            # Crypto tokens & session management
 │       │   └── tenant.ts             # Clinic isolation & access guards
+│       ├── clinical/
+│       │   └── audit.ts              # Append-only clinical audit logger
 │       ├── patients/
 │       │   └── mrn.ts                # Clinic MRN sequence generator
 │       ├── validations/
 │       │   ├── appointment.ts        # Appointment Zod schemas & state machine
 │       │   ├── auth.ts               # Login/registration Zod schemas
 │       │   ├── clinic.ts             # Clinic Zod schemas
+│       │   ├── clinical.ts           # SOAP notes, vitals, & Rx Zod schemas
 │       │   └── patient.ts            # Patient demographic Zod schemas
 │       └── prisma.ts                 # Global Prisma client singleton
 ├── .env.example                      # Sanitized environment variable template
@@ -406,7 +455,7 @@ NEXORA includes an automated test suite covering authentication, tenant isolatio
 ```bash
 npm run test
 ```
-*Executes all 14 test suites in Vitest (89 tests passing).*
+*Executes all 15 test suites in Vitest (116 tests passing).*
 
 ### 2. Run TypeScript Typechecking
 ```bash
@@ -450,6 +499,9 @@ Applies pending migrations without modifying schema files or resetting data.
 | :--- | :--- |
 | `20261021200848_init_auth_clinics_roles` | Created `users`, `clinics`, `memberships`, `sessions`, and `auth_rate_limits` tables with indexes and foreign keys. |
 | `20261021210203_add_patients_and_appointments` | Added `patients` table, `appointments` table, and `AppointmentStatus` enum with multi-tenant unique indexes. |
+| `20261022052216_add_clinical_records_and_emr` | Added clinical tables: `consultations`, `observations`, `diagnoses`, `prescriptions`, `prescription_items`, and `clinical_audit_logs` with enums, foreign keys, and indexes. |
+| `20261022060239_preserve_clinical_history_and_concurrency` | Added `consultation_versions` table, `version` columns for OCC on consultations and prescriptions, and `version` / `is_current` columns on observations and diagnoses to protect clinical integrity and historical records. |
+| `20261022062129_audit_retention_foreign_key_protection` | Updated foreign key delete behaviors on `clinical_audit_logs` and `consultation_versions` from `CASCADE` to `RESTRICT`, preventing cascade deletion of audit trails or version history when clinics or patients are deleted. |
 
 > **Warning**: Never run `npx prisma migrate reset` on production or staging databases, as this permanently drops all existing records.
 
@@ -459,7 +511,7 @@ Applies pending migrations without modifying schema files or resetting data.
 
 NEXORA is engineered to safeguard sensitive healthcare and administrative information:
 
-- **Data Isolation**: Multi-tenant constraints ensure that a practitioner or staff member from Clinic A cannot view, query, or modify patient or appointment records belonging to Clinic B.
+- **Data Isolation**: Multi-tenant constraints ensure that a practitioner or staff member from Clinic A cannot view, query, or modify patient, appointment, or clinical consultation records belonging to Clinic B.
 - **Protection of Stored Credentials**: Passwords are never stored in plaintext. They are salted and hashed using Bcrypt.
 - **Opaque Session Tokens**: Active session tokens are stored as SHA-256 hashes in PostgreSQL.
 - **Protection Against Brute-Force Attacks**: PostgreSQL-backed rate limiting protects login and registration endpoints.
@@ -475,7 +527,7 @@ NEXORA is engineered to safeguard sensitive healthcare and administrative inform
   Task 002: Authentication, Sessions & RBAC         [✓ Completed]
   Task 003: Clinic Onboarding & Dashboard Shell    [✓ Completed]
   Task 004: Patient Management & Appointments      [✓ Completed]
-  Task 005: Clinical Records, SOAP Notes & Rx      [● Planned]
+  Task 005: Clinical Records, SOAP Notes & Rx      [✓ Completed]
   Task 006: Invoicing & Multi-Currency Billing     [○ Planned]
   Task 007: SMS & WhatsApp Patient Notifications   [○ Planned]
   Task 008: ABDM Interoperability & Audit Logging  [○ Planned]

@@ -40,6 +40,15 @@ function computeAgeDisplay(dobString?: string | null): string {
   return `${age} years (${dob.toLocaleDateString()})`;
 }
 
+interface ConsultationSummary {
+  id: string;
+  status: string;
+  createdAt: string;
+  assessment?: string | null;
+  doctor?: { id: string; name: string } | null;
+  diagnoses?: Array<{ name: string; type: string }> | null;
+}
+
 export default function PatientProfilePage({
   params,
 }: {
@@ -53,6 +62,7 @@ export default function PatientProfilePage({
   const [patient, setPatient] = useState<PatientDetails | null>(null);
   const [patientAge, setPatientAge] = useState<string>('Not recorded');
   const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
+  const [consultations, setConsultations] = useState<ConsultationSummary[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +97,16 @@ export default function PatientProfilePage({
         setPatient(p);
         setPatientAge(computeAgeDisplay(p.dateOfBirth));
         setAppointments(data.appointments || []);
+
+        try {
+          const histRes = await fetch(`/api/patients/${patientId}/clinical-history`);
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            setConsultations(histData.consultations || []);
+          }
+        } catch (e) {
+          console.error('Failed to load clinical history:', e);
+        }
 
         setEditName(p.name);
         setEditPhone(p.phone || '');
@@ -210,8 +230,17 @@ export default function PatientProfilePage({
 
         <div className="flex items-center gap-2">
           <Link
-            href={`/dashboard/appointments/new?patientId=${patient.id}`}
+            href={`/dashboard/records/new?patientId=${patient.id}`}
             className="px-3.5 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-teal-500/20 transition flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Start Consultation
+          </Link>
+          <Link
+            href={`/dashboard/appointments/new?patientId=${patient.id}`}
+            className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -493,15 +522,88 @@ export default function PatientProfilePage({
               )}
             </div>
 
-            {/* Clinical Consultation notice */}
-            <div className="p-5 rounded-2xl bg-teal-950/20 border border-teal-800/40 text-xs space-y-2">
-              <div className="font-semibold text-teal-300 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-400" />
-                Electronic Medical Record (EMR)
+            {/* Clinical Consultations / EMR */}
+            <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-teal-400" />
+                  <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Clinical Consultations (EMR)</h2>
+                </div>
+                <Link
+                  href={`/dashboard/records/new?patientId=${patient.id}`}
+                  className="text-xs text-teal-400 hover:underline font-medium"
+                >
+                  + New SOAP
+                </Link>
               </div>
-              <p className="text-slate-400 leading-relaxed text-[11px]">
-                Doctor consultation notes, vitals recording, and digital prescriptions for this patient are scheduled for Task 005.
-              </p>
+
+              {consultations.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400 space-y-2">
+                  <p>No consultation records logged yet for this patient.</p>
+                  <Link
+                    href={`/dashboard/records/new?patientId=${patient.id}`}
+                    className="inline-block px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold transition"
+                  >
+                    Record First Consultation
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                  {consultations.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-2 hover:border-slate-700 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">
+                          {new Date(c.createdAt).toLocaleDateString()}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            c.status === 'FINALIZED'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                              : c.status === 'AMENDED'
+                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                          }`}
+                        >
+                          {c.status}
+                        </span>
+                      </div>
+                      {c.doctor && (
+                        <div className="text-[11px] text-teal-300">
+                          Attending: Dr. {c.doctor.name}
+                        </div>
+                      )}
+                      {c.diagnoses && c.diagnoses.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {c.diagnoses.map((d, idx) => (
+                            <span
+                              key={idx}
+                              className="px-1.5 py-0.5 rounded text-[10px] bg-slate-900 border border-slate-700 text-slate-300"
+                            >
+                              {d.name} {d.type === 'PRIMARY' ? '(Primary)' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {c.assessment && (
+                        <div className="text-[11px] text-slate-400 italic line-clamp-2">
+                          &ldquo;{c.assessment}&rdquo;
+                        </div>
+                      )}
+                      <div className="pt-1 border-t border-slate-900 flex justify-end">
+                        <Link
+                          href={`/dashboard/records/${c.id}`}
+                          className="text-[11px] text-teal-400 hover:underline font-semibold"
+                        >
+                          View Full SOAP Encounter →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

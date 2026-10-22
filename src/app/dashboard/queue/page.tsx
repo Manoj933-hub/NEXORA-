@@ -306,23 +306,39 @@ export default function ReceptionQueuePage() {
                     )}
 
                     {item.status === 'CHECKED_IN' && (
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleStatusTransition(item.id, 'IN_PROGRESS')}
-                        className="px-3.5 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition disabled:opacity-50"
-                      >
-                        {isUpdating ? 'Calling...' : 'Call to Doctor Room'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={isUpdating}
+                          onClick={() => handleStatusTransition(item.id, 'IN_PROGRESS')}
+                          className="px-3.5 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition disabled:opacity-50"
+                        >
+                          {isUpdating ? 'Calling...' : 'Call to Doctor Room'}
+                        </button>
+                        <Link
+                          href={`/dashboard/records/new?patientId=${item.patient.id}&appointmentId=${item.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold shadow-md shadow-teal-500/20 transition flex items-center gap-1"
+                        >
+                          Consult
+                        </Link>
+                      </div>
                     )}
 
                     {item.status === 'IN_PROGRESS' && (
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleStatusTransition(item.id, 'COMPLETED')}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md shadow-emerald-500/20 transition disabled:opacity-50"
-                      >
-                        {isUpdating ? 'Updating...' : 'Finish Visit (Complete)'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/dashboard/records/new?patientId=${item.patient.id}&appointmentId=${item.id}`}
+                          className="px-3.5 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold shadow-md shadow-teal-500/20 transition flex items-center gap-1"
+                        >
+                          Open SOAP Note
+                        </Link>
+                        <button
+                          disabled={isUpdating}
+                          onClick={() => handleStatusTransition(item.id, 'COMPLETED')}
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md shadow-emerald-500/20 transition disabled:opacity-50"
+                        >
+                          {isUpdating ? 'Updating...' : 'Finish Visit (Complete)'}
+                        </button>
+                      </div>
                     )}
 
                     {item.status === 'COMPLETED' && (

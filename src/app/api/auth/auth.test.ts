@@ -16,6 +16,7 @@ describe('Auth & Session Integration Tests', () => {
 
   beforeAll(async () => {
     // Clean up any previous test artifacts
+    await prisma.authRateLimit.deleteMany({});
     await prisma.user.deleteMany({
       where: { email: { contains: 'doctor.test.' } },
     });
