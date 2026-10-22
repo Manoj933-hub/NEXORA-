@@ -211,7 +211,7 @@ export async function PATCH(
         },
         include: {
           patient: true,
-          doctor: { select: { id: true, name: true } },
+          doctor: { select: { id: true, name: true, email: true } },
           items: true,
         },
       });

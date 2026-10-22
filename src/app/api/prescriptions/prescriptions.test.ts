@@ -629,6 +629,7 @@ describe('Task 006: Prescription Lifecycle, Security & Tenant-Isolation Suite', 
       expect(json.prescription.status).toBe('COMPLETED');
       expect(json.prescription.version).toBe(2);
       expect(json.prescription.notes).toBe('Patient finished treatment');
+      expect(json.prescription.doctor.email).toBe(doctorUserA.email);
 
       // Verify audit log
       const audit = await prisma.clinicalAuditLog.findFirst({
