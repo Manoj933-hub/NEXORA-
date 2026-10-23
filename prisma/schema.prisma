@@ -39,6 +39,7 @@ model User {
   clinicalAuditLogs ClinicalAuditLog[]
   createdInvoices   Invoice[]             @relation("InvoiceCreatedBy")
   receivedPayments  Payment[]             @relation("PaymentReceivedBy")
+  notificationLogs  NotificationLog[]     @relation("NotificationCreatedBy")
 
   @@index([email])
   @@map("users")
@@ -71,6 +72,9 @@ model Clinic {
   invoices             Invoice[]
   invoiceSequences     InvoiceSequence[]
   payments             Payment[]
+  notificationSetting  ClinicNotificationSetting?
+  notificationLogs     NotificationLog[]
+  secureLinks          SecureDocumentLink[]
 
   @@index([slug])
   @@map("clinics")
@@ -98,6 +102,8 @@ model Patient {
   bloodGroup       String?            @map("blood_group")
   allergies        String?
   notes            String?
+  smsConsent       Boolean            @default(false) @map("sms_consent")
+  whatsappConsent  Boolean            @default(false) @map("whatsapp_consent")
   isActive         Boolean            @default(true) @map("is_active")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
@@ -111,6 +117,8 @@ model Patient {
   consultationVersions ConsultationVersion[]
   clinicalAuditLogs   ClinicalAuditLog[]
   invoices            Invoice[]
+  notifications       NotificationLog[]
+  secureLinks         SecureDocumentLink[]
 
   @@unique([clinicId, mrn])
   @@index([clinicId])
@@ -142,6 +150,7 @@ model Appointment {
   doctor          User?             @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   consultations   Consultation[]
   invoices        Invoice[]
+  notifications   NotificationLog[]
 
   @@index([clinicId])
   @@index([clinicId, startTime])
@@ -342,6 +351,7 @@ model Prescription {
   doctor          User               @relation("DoctorPrescriptions", fields: [doctorId], references: [id], onDelete: Restrict)
 
   items           PrescriptionItem[]
+  notifications   NotificationLog[]
 
   @@index([clinicId])
   @@index([patientId])
@@ -512,6 +522,7 @@ model Invoice {
 
   items          InvoiceItem[]
   payments       Payment[]
+  notifications  NotificationLog[]
 
   @@unique([clinicId, invoiceNumber])
   @@index([clinicId, status])
@@ -556,9 +567,111 @@ model Payment {
   clinic         Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   receivedBy     User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  notifications  NotificationLog[]
 
   @@index([clinicId, invoiceId])
   @@index([clinicId, receivedAt])
   @@index([receivedById])
   @@map("payments")
 }
+
+// ─── PATIENT COMMUNICATIONS & NOTIFICATIONS ──────────────────────────────
+
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum NotificationEventType {
+  APPOINTMENT_BOOKED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_REMINDER
+  PRESCRIPTION_READY
+  PAYMENT_RECEIPT
+  INVOICE_ISSUED
+  GENERAL_ANNOUNCEMENT
+}
+
+model ClinicNotificationSetting {
+  id                 String   @id @default(uuid())
+  clinicId           String   @unique @map("clinic_id")
+  smsEnabled         Boolean  @default(true) @map("sms_enabled")
+  whatsappEnabled    Boolean  @default(true) @map("whatsapp_enabled")
+  appointmentAlerts  Boolean  @default(true) @map("appointment_alerts")
+  prescriptionAlerts Boolean  @default(true) @map("prescription_alerts")
+  billingAlerts      Boolean  @default(true) @map("billing_alerts")
+  senderName         String?  @map("sender_name")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  clinic             Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_notification_settings")
+}
+
+model NotificationLog {
+  id                String                @id @default(uuid())
+  clinicId          String                @map("clinic_id")
+  patientId         String                @map("patient_id")
+  appointmentId     String?               @map("appointment_id")
+  prescriptionId    String?               @map("prescription_id")
+  invoiceId         String?               @map("invoice_id")
+  paymentId         String?               @map("payment_id")
+  channel           NotificationChannel
+  eventType         NotificationEventType @map("event_type")
+  recipientPhone    String                @map("recipient_phone")
+  messageBody       String                @map("message_body")
+  status            NotificationStatus    @default(PENDING)
+  providerMessageId String?               @map("provider_message_id")
+  providerName      String                @default("MOCK") @map("provider_name")
+  errorMessage      String?               @map("error_message")
+  sentAt            DateTime?             @map("sent_at")
+  deliveredAt       DateTime?             @map("delivered_at")
+  createdById       String?               @map("created_by_id")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  clinic            Clinic                @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient           Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointment       Appointment?          @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  prescription      Prescription?         @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  invoice           Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payment           Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdBy         User?                 @relation("NotificationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+  @@index([clinicId, patientId])
+  @@index([clinicId, status])
+  @@index([clinicId, eventType])
+  @@map("notification_logs")
+}
+
+model SecureDocumentLink {
+  id             String    @id @default(uuid())
+  clinicId       String    @map("clinic_id")
+  patientId      String    @map("patient_id")
+  tokenHash      String    @unique @map("token_hash")
+  resourceType   String    @map("resource_type") // "PRESCRIPTION" | "INVOICE" | "RECEIPT"
+  resourceId     String    @map("resource_id")
+  expiresAt      DateTime  @map("expires_at")
+  accessCount    Int       @default(0) @map("access_count")
+  lastAccessedAt DateTime? @map("last_accessed_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  clinic         Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([clinicId, resourceId])
+  @@map("secure_document_links")
+}
+

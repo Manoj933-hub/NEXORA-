@@ -5,6 +5,7 @@ import { validateRequestOrigin } from '@/lib/auth/csrf';
 import { CreateAppointmentInputSchema, AppointmentQuerySchema } from '@/lib/validations/appointment';
 import type { Permission } from '@/lib/auth/permissions';
 import { AppointmentStatus } from '@prisma/client';
+import { notifyAppointmentBooked } from '@/lib/notifications/workflow-triggers';
 
 async function resolveTenantContext(
   request: Request,
@@ -296,6 +297,14 @@ export async function POST(request: Request) {
           },
         },
       },
+    });
+
+    // Trigger patient notification (Phase 9.3) - non-blocking ancillary task
+    await notifyAppointmentBooked({
+      clinicId: context.clinic.id,
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      createdById: context.user.id,
     });
 
     return NextResponse.json(

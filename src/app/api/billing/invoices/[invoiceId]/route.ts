@@ -281,13 +281,6 @@ export async function PATCH(
 
       // Check status transition validity against current locked row
       if (input.status) {
-        if (!isValidInvoiceStatusTransition(lockedInvoice.status, input.status)) {
-          throw new PatchRouteError(
-            `Invalid invoice status transition from '${lockedInvoice.status}' to '${input.status}'`,
-            400
-          );
-        }
-
         // Financial invariant: cannot void an invoice with recorded payments
         if (input.status === 'VOID') {
           const currentPaid = new Prisma.Decimal(lockedInvoice.paid_amount);
@@ -304,6 +297,13 @@ export async function PATCH(
               400
             );
           }
+        }
+
+        if (!isValidInvoiceStatusTransition(lockedInvoice.status, input.status)) {
+          throw new PatchRouteError(
+            `Invalid invoice status transition from '${lockedInvoice.status}' to '${input.status}'`,
+            400
+          );
         }
       }
 

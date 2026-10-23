@@ -10,6 +10,7 @@ import {
 import type { Permission } from '@/lib/auth/permissions';
 import { recordClinicalAudit } from '@/lib/clinical/audit';
 import { ConsultationStatus, AppointmentStatus, Prisma } from '@prisma/client';
+import { notifyPrescriptionReady } from '@/lib/notifications/workflow-triggers';
 
 class ConcurrencyError extends Error {
   constructor(message: string) {
@@ -635,6 +636,24 @@ export async function PATCH(
         },
       });
     });
+
+    // Trigger prescription notification if transitioning to FINALIZED (Phase 9.3) - non-blocking ancillary task
+    if (
+      targetStatus === ConsultationStatus.FINALIZED &&
+      currentStatus === ConsultationStatus.DRAFT &&
+      updated?.prescriptions
+    ) {
+      for (const rx of updated.prescriptions) {
+        if (rx.status === 'ACTIVE') {
+          await notifyPrescriptionReady({
+            clinicId: context.clinic.id,
+            patientId: existingConsultation.patientId,
+            prescriptionId: rx.id,
+            createdById: context.user.id,
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ consultation: updated });
   } catch (error) {

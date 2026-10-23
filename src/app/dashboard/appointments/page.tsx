@@ -42,10 +42,92 @@ export default function AppointmentsListPage() {
   const [newEndTime, setNewEndTime] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Reminder Modal State (Phase 9.4 Front-Desk Action)
+  const [reminderModalAppointment, setReminderModalAppointment] = useState<AppointmentItem | null>(null);
+  const [reminderChannel, setReminderChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
+  const [reminderSending, setReminderSending] = useState(false);
+  const [reminderOutcome, setReminderOutcome] = useState<{
+    type: 'success' | 'warning' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+
   const reloadAppointments = useCallback(() => {
     setLoading(true);
     setRefreshTrigger((prev) => prev + 1);
   }, []);
+
+  async function handleSendReminder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reminderModalAppointment || reminderSending) return;
+
+    setReminderSending(true);
+    setReminderOutcome(null);
+
+    try {
+      const res = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: reminderModalAppointment.patient.id,
+          channel: reminderChannel,
+          eventType: 'APPOINTMENT_REMINDER',
+          appointmentId: reminderModalAppointment.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.code === 'CONSENT_DENIED') {
+          setReminderOutcome({
+            type: 'error',
+            message: `Consent denied: Patient has not consented to ${reminderChannel} messages.`,
+          });
+        } else if (data.code === 'DUPLICATE_SUPPRESSED') {
+          setReminderOutcome({
+            type: 'info',
+            message: 'Reminder suppressed: An identical reminder was already sent to this patient within the last 5 minutes.',
+          });
+        } else if (data.code === 'PATIENT_RATE_LIMIT_EXCEEDED') {
+          setReminderOutcome({
+            type: 'warning',
+            message: 'Patient rate limit reached: Maximum 3 notifications permitted per patient per hour.',
+          });
+        } else if (data.code === 'ALERT_TYPE_DISABLED') {
+          setReminderOutcome({
+            type: 'warning',
+            message: 'Appointment alerts are currently disabled in clinic settings.',
+          });
+        } else {
+          setReminderOutcome({
+            type: 'error',
+            message: data.error || 'Failed to dispatch appointment reminder.',
+          });
+        }
+        return;
+      }
+
+      if (data.notification?.success) {
+        setReminderOutcome({
+          type: 'success',
+          message: `Reminder sent successfully via ${data.notification.channel} to ${data.notification.recipientPhone || 'patient'}.`,
+        });
+      } else {
+        setReminderOutcome({
+          type: 'warning',
+          message: `Reminder logged, but delivery failed at provider: ${data.notification?.error || 'Carrier error'}`,
+        });
+      }
+    } catch (err) {
+      console.error('Error sending appointment reminder:', err);
+      setReminderOutcome({
+        type: 'error',
+        message: 'A network error occurred while dispatching the reminder.',
+      });
+    } finally {
+      setReminderSending(false);
+    }
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -331,6 +413,17 @@ export default function AppointmentsListPage() {
                             </button>
                             <button
                               disabled={isActionLoading}
+                              onClick={() => {
+                                setReminderOutcome(null);
+                                setReminderModalAppointment(apt);
+                              }}
+                              className="px-2 py-1 rounded bg-sky-950/40 hover:bg-sky-900/60 text-sky-300 text-[11px] border border-sky-800/40 transition"
+                              title="Send reminder to patient"
+                            >
+                              Remind
+                            </button>
+                            <button
+                              disabled={isActionLoading}
                               onClick={() => setCancelModalId(apt.id)}
                               className="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-[11px] border border-rose-800/40 transition"
                             >
@@ -470,6 +563,149 @@ export default function AppointmentsListPage() {
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 transition"
               >
                 Save Reschedule
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Reminder Modal (Phase 9.4 Front-Desk Manual Action) */}
+      {reminderModalAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <form
+            onSubmit={handleSendReminder}
+            className="w-full max-w-md p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-bold text-white text-base">Send Appointment Reminder</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Send an SMS or WhatsApp reminder directly to the patient.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReminderModalAppointment(null)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Outcome Notice */}
+            {reminderOutcome && (
+              <div
+                className={`p-3 rounded-xl border text-xs ${
+                  reminderOutcome.type === 'success'
+                    ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
+                    : reminderOutcome.type === 'info'
+                    ? 'bg-blue-950/40 border-blue-800 text-blue-200'
+                    : reminderOutcome.type === 'warning'
+                    ? 'bg-amber-950/40 border-amber-800 text-amber-200'
+                    : 'bg-red-950/40 border-red-800 text-red-200'
+                }`}
+              >
+                {reminderOutcome.message}
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs text-slate-300">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-850 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Patient:</span>
+                  <span className="font-semibold text-white">
+                    {reminderModalAppointment.patient.name} ({reminderModalAppointment.patient.mrn})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Phone:</span>
+                  <span className="font-mono text-slate-300">
+                    {reminderModalAppointment.patient.phone || 'No phone recorded'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Appointment Time:</span>
+                  <span className="text-teal-300">
+                    {new Date(reminderModalAppointment.startTime).toLocaleString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}
+                  </span>
+                </div>
+                {reminderModalAppointment.doctor && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Doctor:</span>
+                    <span>Dr. {reminderModalAppointment.doctor.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Preferred Channel
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label
+                    className={`p-2.5 rounded-lg border text-center cursor-pointer transition ${
+                      reminderChannel === 'WHATSAPP'
+                        ? 'bg-emerald-950/50 border-emerald-500 text-emerald-200 font-semibold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reminderChannel"
+                      value="WHATSAPP"
+                      checked={reminderChannel === 'WHATSAPP'}
+                      onChange={() => setReminderChannel('WHATSAPP')}
+                      className="sr-only"
+                    />
+                    WhatsApp
+                  </label>
+                  <label
+                    className={`p-2.5 rounded-lg border text-center cursor-pointer transition ${
+                      reminderChannel === 'SMS'
+                        ? 'bg-sky-950/50 border-sky-500 text-sky-200 font-semibold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reminderChannel"
+                      value="SMS"
+                      checked={reminderChannel === 'SMS'}
+                      onChange={() => setReminderChannel('SMS')}
+                      className="sr-only"
+                    />
+                    SMS
+                  </label>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500">
+                Patient consent is verified prior to dispatch. Messages sent are subject to clinic rate limits (max 3/hr per patient).
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setReminderModalAppointment(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white"
+              >
+                Close
+              </button>
+              <button
+                type="submit"
+                disabled={reminderSending || !reminderModalAppointment.patient.phone}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 flex items-center gap-1.5 shadow-md shadow-teal-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {reminderSending && <div className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />}
+                {reminderSending ? 'Sending...' : 'Send Reminder'}
               </button>
             </div>
           </form>

@@ -9,6 +9,7 @@ import {
   toDecimal,
 } from '@/lib/billing/invoice-calculator';
 import { Prisma, type InvoiceStatus } from '@prisma/client';
+import { notifyPaymentReceipt } from '@/lib/notifications/workflow-triggers';
 
 class PaymentRouteError extends Error {
   public statusCode: number;
@@ -96,12 +97,13 @@ export async function POST(
     }
 
     // Execute row-locked transaction: lock invoice row, verify fresh state, record payment, update invoice
-    const { payment, updatedInvoice } = await prisma.$transaction(async (tx) => {
+    const { payment, updatedInvoice, patientId } = await prisma.$transaction(async (tx) => {
       // Acquire exclusive row-level lock on target invoice scoped strictly to active clinic
       const [lockedInvoice] = await tx.$queryRaw<
         Array<{
           id: string;
           clinic_id: string;
+          patient_id: string;
           invoice_number: string;
           status: InvoiceStatus;
           total_amount: Prisma.Decimal;
@@ -111,6 +113,7 @@ export async function POST(
         SELECT
           id,
           clinic_id,
+          patient_id,
           invoice_number,
           status,
           total_amount,
@@ -195,7 +198,17 @@ export async function POST(
       return {
         payment: createdPayment,
         updatedInvoice: updated,
+        patientId: lockedInvoice.patient_id,
       };
+    });
+
+    // Trigger payment receipt notification (Phase 9.3) - non-blocking ancillary task
+    await notifyPaymentReceipt({
+      clinicId: context.clinic.id,
+      patientId,
+      paymentId: payment.id,
+      invoiceId: updatedInvoice.id,
+      createdById: context.user.id,
     });
 
     const balance = calculateBalanceDue(updatedInvoice.totalAmount, updatedInvoice.paidAmount);

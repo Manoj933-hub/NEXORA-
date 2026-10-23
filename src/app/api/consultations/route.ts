@@ -9,6 +9,7 @@ import {
 import type { Permission } from '@/lib/auth/permissions';
 import { recordClinicalAudit } from '@/lib/clinical/audit';
 import { ConsultationStatus, AppointmentStatus, Prisma } from '@prisma/client';
+import { notifyPrescriptionReady } from '@/lib/notifications/workflow-triggers';
 
 async function resolveTenantContext(
   request: Request,
@@ -407,6 +408,23 @@ export async function POST(request: Request) {
         },
       });
     });
+
+    // Trigger prescription notification if created as FINALIZED (Phase 9.3) - non-blocking ancillary task
+    if (
+      targetStatus === ConsultationStatus.FINALIZED &&
+      createdConsultation?.prescriptions
+    ) {
+      for (const rx of createdConsultation.prescriptions) {
+        if (rx.status === 'ACTIVE') {
+          await notifyPrescriptionReady({
+            clinicId: context.clinic.id,
+            patientId: patient.id,
+            prescriptionId: rx.id,
+            createdById: context.user.id,
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ consultation: createdConsultation }, { status: 201 });
   } catch (error) {

@@ -9,6 +9,10 @@ import {
 } from '@/lib/validations/appointment';
 import type { Permission } from '@/lib/auth/permissions';
 import { AppointmentStatus } from '@prisma/client';
+import {
+  notifyAppointmentRescheduled,
+  notifyAppointmentCancelled,
+} from '@/lib/notifications/workflow-triggers';
 
 async function resolveTenantContext(
   request: Request,
@@ -179,6 +183,10 @@ export async function PATCH(
         }
       }
 
+      const isScheduleChanged =
+        startDateTime.getTime() !== appointment.startTime.getTime() ||
+        endDateTime.getTime() !== appointment.endTime.getTime();
+
       const updated = await prisma.appointment.update({
         where: { id: appointment.id },
         data: {
@@ -191,6 +199,16 @@ export async function PATCH(
           doctor: { select: { id: true, name: true, email: true } },
         },
       });
+
+      // Trigger patient notification (Phase 9.3) - non-blocking ancillary task (only when schedule actually changed)
+      if (isScheduleChanged) {
+        await notifyAppointmentRescheduled({
+          clinicId: context.clinic.id,
+          patientId: appointment.patientId,
+          appointmentId: updated.id,
+          createdById: context.user.id,
+        });
+      }
 
       return NextResponse.json({
         message: 'Appointment rescheduled successfully',
@@ -248,6 +266,19 @@ export async function PATCH(
           doctor: { select: { id: true, name: true, email: true } },
         },
       });
+
+      // Trigger patient notification for cancellation (Phase 9.3) - non-blocking ancillary task
+      if (
+        targetStatus === AppointmentStatus.CANCELLED &&
+        appointment.status !== AppointmentStatus.CANCELLED
+      ) {
+        await notifyAppointmentCancelled({
+          clinicId: context.clinic.id,
+          patientId: appointment.patientId,
+          appointmentId: updated.id,
+          createdById: context.user.id,
+        });
+      }
 
       return NextResponse.json({
         message: `Appointment marked as ${targetStatus.toLowerCase().replace('_', ' ')}`,

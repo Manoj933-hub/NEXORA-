@@ -316,6 +316,28 @@ export default function ClinicSettingsPage() {
           </div>
         )}
       </form>
+
+      {/* Patient Communications & Alerts Card */}
+      <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-teal-400" />
+            <h3 className="text-sm font-semibold text-white">Patient Communications & Alert Settings</h3>
+          </div>
+          <p className="text-xs text-slate-400 mt-1 max-w-xl">
+            Configure automated SMS and WhatsApp delivery channels, appointment reminders, prescription links, and billing receipts.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/settings/notifications"
+          className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-teal-300 border border-slate-700 flex items-center gap-1.5 transition whitespace-nowrap"
+        >
+          Manage Alerts
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      </div>
     </div>
   );
 }
